@@ -1,8 +1,10 @@
 package com.ureca.SpringJWT.config;
 
+import com.ureca.SpringJWT.jwt.CustomLogoutFilter;
 import com.ureca.SpringJWT.jwt.JWTFilter;
 import com.ureca.SpringJWT.jwt.JWTUtil;
 import com.ureca.SpringJWT.jwt.LoginFilter;
+import com.ureca.SpringJWT.repository.RefreshRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +17,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 
@@ -28,6 +31,8 @@ public class SecurityConfig {
     private final AuthenticationConfiguration authenticationConfiguration;
 
     private final JWTUtil jwtUtil;
+
+    private final RefreshRepository refreshRepository;
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
@@ -80,7 +85,7 @@ public class SecurityConfig {
         //경로별 인가 작업
         http
                 .authorizeHttpRequests((auth) -> auth
-                        .requestMatchers("login", "/", "/join").permitAll()
+                        .requestMatchers("login", "/", "/join", "/reissue").permitAll()
                         .requestMatchers("/admin").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 );
@@ -92,9 +97,13 @@ public class SecurityConfig {
         // (AuthenticationManger() 메소드에 authenticationConfiguration 객체를 넣어야 함) 따라서 등록 필요
         http
                 .addFilterAt(
-                        new LoginFilter(authenticationManager(authenticationConfiguration), jwtUtil),
+                        new LoginFilter(authenticationManager(authenticationConfiguration), jwtUtil, refreshRepository),
                         UsernamePasswordAuthenticationFilter.class);
-
+        http
+                .addFilterBefore(
+                        new CustomLogoutFilter(jwtUtil, refreshRepository),
+                        LogoutFilter.class
+                );
         //세션 설정
         http
                 .sessionManagement((session) -> session
